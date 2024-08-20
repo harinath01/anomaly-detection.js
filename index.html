@@ -4,9 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <title>Anomaly Detection with Face API</title>
+    <script src="js/face-api.min.js"></script>
     <style>
         body {
             display: flex;
@@ -17,109 +16,90 @@
             background-color: #f0f0f0;
         }
 
-        #container {
+        .container {
             display: flex;
-            align-items: flex-start;
         }
 
-        #webcam {
-            width: 640px;
-            height: 480px;
+        video {
+            border: 1px solid #ccc;
         }
 
-        #anomaly-container {
-            font-size: 20px;
-            color: red;
+        #anomalyContainer {
             margin-left: 20px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            max-height: 480px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            background-color: #fff;
+            width: 300px;
+            max-height: 500px;
             overflow-y: auto;
-        }
-
-        .anomaly-item {
-            margin-bottom: 10px;
-        }
-
-        .timestamp {
-            font-size: 14px;
-            color: gray;
         }
     </style>
 </head>
 
 <body>
-    <div id="container">
+    <div class="container">
         <video id="webcam" autoplay playsinline></video>
-        <div id="anomaly-container"></div>
+        <div id="anomalyContainer">
+            <h4>Anomalies Detected:</h4>
+            <ul id="anomalyList"></ul>
+        </div>
     </div>
     <script>
-        let video = document.getElementById('webcam');
-        let anomalyContainer = document.getElementById('anomaly-container');
+        const video = document.getElementById("webcam");
+        const anomalyList = document.getElementById("anomalyList");
 
-        // Initialize an empty list of anomalies
-        let anomalies = [];
-        let model;
+        // Load face-api models
+        Promise.all([
+            faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
+            faceapi.nets.faceLandmark68Net.loadFromUri('/models')
+        ]).then(startWebcam);
 
-        // Function to initialize the webcam
-        function initializeWebcam() {
-            return navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
-                video.srcObject = stream;
-            });
+        // Start webcam stream
+        function startWebcam() {
+            navigator.mediaDevices.getUserMedia({ video: {} })
+                .then(stream => {
+                    video.srcObject = stream;
+                    video.play();
+
+                    // Start face detection after webcam is started
+                    setInterval(() => {
+                        detectFace();
+                    }, 3000);
+                })
+                .catch(err => console.error("Error accessing webcam:", err));
         }
 
-        // Function to load the CocoSSD model
-        function loadModel() {
-            return cocoSsd.load().then(loadedModel => {
-                model = loadedModel;
-            });
+        function addAnomaly(type) {
+            const timestamp = new Date().toLocaleTimeString();
+            const li = document.createElement('li');
+            li.textContent = `${timestamp}: ${type}`;
+            anomalyList.appendChild(li);
         }
 
-        // Initialize the webcam and then load the model
-        initializeWebcam().then(() => {
-            return loadModel();
-        }).then(() => {
-            // Start the anomaly detection after the model is loaded
-            setInterval(() => {
-                if (model) {
-                    model.detect(video).then(predictions => {
-                        let personCount = predictions.filter(p => p.class === 'person').length;
+        // Face detection and anomaly detection
+        async function detectFace() {
+            const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+                .withFaceLandmarks();
 
-                        if (personCount === 0) {
-                            flagAnomaly('no_person');
-                        } else if (personCount > 1) {
-                            flagAnomaly('multiple_persons');
-                        }
-                    });
+            if (detections.length === 0) {
+                addAnomaly('No person detected');
+            } else if (detections.length > 1) {
+                addAnomaly('Multiple persons detected');
+            } else {
+                addAnomaly('Person detected');
+                const face = detections[0];
+                const landmarks = face.landmarks;
+                const nose = landmarks.getNose();
+
+                // Check if the face is looking away
+                const noseX = nose[0].x;
+                const faceCenterX = face.detection.box.x + face.detection.box.width / 2;
+
+                const threshold = 0.2; // Adjust this value based on your needs
+                if (Math.abs(noseX - faceCenterX) > face.detection.box.width * threshold) {
+                    addAnomaly('User looking away from the screen');
                 }
-            }, 3000);
-        }).catch(error => {
-            console.error('Error initializing webcam or loading model:', error);
-        });
-
-        function flagAnomaly(type) {
-            let timestamp = new Date().toLocaleTimeString();
-            let message = type === 'no_person' ? 'No person detected!' : 'Multiple persons detected!';
-
-            // Add the new anomaly to the list
-            anomalies.push({ message, timestamp });
-
-            // Update the anomaly container with the new list
-            updateAnomalyContainer();
-        }
-
-        function updateAnomalyContainer() {
-            anomalyContainer.innerHTML = '';
-            anomalies.forEach(anomaly => {
-                let anomalyDiv = document.createElement('div');
-                anomalyDiv.className = 'anomaly-item';
-                anomalyDiv.innerHTML = `
-                    <div>${anomaly.message}</div>
-                    <div class="timestamp">Timestamp: ${anomaly.timestamp}</div>
-                `;
-                anomalyContainer.appendChild(anomalyDiv);
-            });
+            }
         }
     </script>
 </body>
