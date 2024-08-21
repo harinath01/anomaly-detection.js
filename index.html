@@ -74,6 +74,8 @@
             const li = document.createElement('li');
             li.textContent = `${timestamp}: ${type}`;
             anomalyList.appendChild(li);
+
+            anomalyContainer.scrollTop = anomalyContainer.scrollHeight;
         }
 
         // Face detection and anomaly detection
@@ -89,14 +91,25 @@
                 addAnomaly('Person detected');
                 const face = detections[0];
                 const landmarks = face.landmarks;
-                const nose = landmarks.getNose();
+                const leftEye = landmarks.getLeftEye();
+                const rightEye = landmarks.getRightEye();
+                const jawOutline = landmarks.getJawOutline();
 
-                // Check if the face is looking away
-                const noseX = nose[0].x;
-                const faceCenterX = face.detection.box.x + face.detection.box.width / 2;
+                // Calculate eye and jawline positions
+                const leftEyeX = (leftEye[0].x + leftEye[3].x) / 2; // Midpoint of the left eye
+                const rightEyeX = (rightEye[0].x + rightEye[3].x) / 2; // Midpoint of the right eye
+                const jawLeftX = jawOutline[0].x;
+                const jawRightX = jawOutline[16].x;
+                const faceCenterX = (jawLeftX + jawRightX) / 2;
 
-                const threshold = 0.2; // Adjust this value based on your needs
-                if (Math.abs(noseX - faceCenterX) > face.detection.box.width * threshold) {
+                // Threshold to determine if looking away
+                const threshold = 0.15; // Adjust based on your needs
+
+                // Check if eyes are centered
+                const eyesCentered = Math.abs(leftEyeX - faceCenterX) < jawRightX * threshold &&
+                    Math.abs(rightEyeX - faceCenterX) < jawRightX * threshold;
+
+                if (!eyesCentered) {
                     addAnomaly('User looking away from the screen');
                 }
             }
