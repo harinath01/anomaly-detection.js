@@ -1,0 +1,38 @@
+body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    margin: 0;
+    background-color: #f0f0f0;
+}
+
+#container {
+    display: flex;
+    align-items: flex-start;
+}
+
+#webcam {
+    width: 640px;
+    height: 480px;
+}
+
+#anomaly-container {
+    font-size: 20px;
+    color: red;
+    margin-left: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    max-height: 480px;
+    overflow-y: auto;
+}
+
+.anomaly-item {
+    margin-bottom: 10px;
+}
+
+.timestamp {
+    font-size: 14px;
+    color: gray;
+}
